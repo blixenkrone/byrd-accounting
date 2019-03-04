@@ -43,7 +43,7 @@ func HandleRequest() {
 	/*CUSTOM DATES*/
 	dates := invoices.SetDateRange()
 	file := CreateInvoice(dates)
-	_, err := StoreOnAWS(file, dates)
+	dirName, err := StoreOnAWS(file, dates)
 	if err != nil {
 		fmt.Printf("couldt upload to server: %s", err)
 	}
