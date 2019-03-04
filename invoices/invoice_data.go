@@ -33,10 +33,11 @@ type Pagination struct {
 // BookedInvoice - endpoint https://restapi.e-conomic.com/invoices/booked/:number
 type BookedInvoice struct {
 	BookedInvoiceNumber int        `json:"bookedInvoiceNumber,omitempty"`
+	NetAmount           float64    `json:"netAmount"` /* Only for outside platform sales*/
+	VatAmount           float64    `json:"vatAmount"` /* Only for outside platform sales*/
 	Date                string     `json:"date,omitempty"`
 	Currency            string     `json:"currency,omitempty"`
 	GrossAmount         float64    `json:"grossAmount,omitempty"`
-	VatAmount           float64    `json:"vatAmount"`
 	Lines               []*Lines   `json:"lines,omitempty"`
 	Recipient           *Recipient `json:"recipient"`
 }

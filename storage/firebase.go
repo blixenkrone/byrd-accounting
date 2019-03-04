@@ -14,15 +14,26 @@ import (
 
 // SubscriptionProduct is the economics invoice ID
 type SubscriptionProduct struct {
-	Credits  int    `json:"credits"`
-	StripeID string `json:"id"`
-	Period   string `json:"period"`
+	Credits     int     `json:"credits"` /* Important */
+	FBID        string  `json:"id"`
+	Period      string  `json:"period"`
+	PhotoCut    float64 `json:"photoCut"`
+	TotalAmount float64 `json:"totalAmount"`
 }
 
 // DBInstance -
 type DBInstance struct {
 	Client  *db.Client
 	Context context.Context
+}
+
+// Nonplatform If sale != web app sale
+const Nonplatform = "nonplatform"
+
+// NonPlatformSale If the sale is outside byrd app
+type NonPlatformSale interface {
+	IsNonPlatform() bool
+	SellerCut() float64
 }
 
 // InitFirebaseDB SE
@@ -58,4 +69,28 @@ func GetSubscriptionProducts(db *DBInstance, productNumber string) (*Subscriptio
 		return nil, err
 	}
 	return &product, nil
+}
+
+// GetSellerCut returns the cut for the seller ourside byrd app
+func (p *SubscriptionProduct) GetSellerCut() float64 {
+	if ok := p.IsNonPlatform(); ok != false {
+		return p.PhotoCut
+	}
+	return 0
+}
+
+// IsNonPlatform is the sale outside web app?
+func (p *SubscriptionProduct) IsNonPlatform() bool {
+	if p.FBID == Nonplatform {
+		return true
+	}
+	return false
+}
+
+// IsYearlyProduct if the product is yearly
+func (p SubscriptionProduct) IsYearlyProduct() *SubscriptionProduct {
+	if p.Period == "year" {
+		p.Credits *= 12
+	}
+	return &p
 }

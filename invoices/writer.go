@@ -45,6 +45,7 @@ type TotalVals struct {
 }
 
 var ftrHdrSizes = []float64{20, 20, 50, 20, 20, 30, 30, 30, 30}
+var noPlatForm = map[string]bool{"11": true, "32": true}
 
 // WriteInvoicesPDF (abstraction) creates PDF from data
 func WriteInvoicesPDF(invoices []*BookedInvoice) ([]byte, error) {
@@ -108,7 +109,6 @@ func handleValues(db *storage.DBInstance, invoices []*BookedInvoice) []*PDFLine 
 	for _, invoice := range invoices {
 		for _, line := range invoice.Lines {
 			if nilBookedInv()[invoice.BookedInvoiceNumber] != true {
-				fmt.Printf("Didn't book invoice#: %v", invoice.BookedInvoiceNumber)
 				// If the line number is not the sortkey
 				line = line.handleIfWrongLineNumber(invoice)
 				// If line and sortkey checks out
@@ -118,21 +118,10 @@ func handleValues(db *storage.DBInstance, invoices []*BookedInvoice) []*PDFLine 
 						log.Panicf("Didnt get products from FB: %s", err)
 					}
 					product.Credits = line.handleIfPAYGCredits(product)
-					product = line.isYearlyProduct(product)
+					product = product.IsYearlyProduct()
 					line = line.isEuroAmount(invoice)
-
-					pdfLine := PDFLine{
-						InvoiceNum:   invoice.BookedInvoiceNumber,
-						Recipient:    invoice.Recipient,
-						Date:         invoice.Date,
-						MaxSellerCut: line.maxSellerCut(product),
-						MinByrdInc:   line.minByrdInc(product),
-						Period:       setPeriod(product.Period),
-						VAT:          invoice.applyTax(line),
-						NetAmount:    line.TotalNetAmount,
-					}
-					fmt.Printf("Credits: %v. VAT: %v. Period: %s \n", product.Credits, pdfLine.VAT, pdfLine.Period)
-					pdfLines = append(pdfLines, &pdfLine)
+					// Adding to PDF values slice
+					pdfLines = line.addToLine(pdfLines, invoice, product)
 				}
 			}
 		}
@@ -140,23 +129,39 @@ func handleValues(db *storage.DBInstance, invoices []*BookedInvoice) []*PDFLine 
 	return pdfLines
 }
 
-func (l *Lines) handleIfWrongLineNumber(i *BookedInvoice) *Lines {
-	if l.SortKey != l.LineNumber {
-		if l.LineNumber != productLineNumber {
-			l.LineNumber = productLineNumber
+// Function inside invoice loop
+func (l *Lines) addToLine(pdfLines []*PDFLine, i *BookedInvoice, p *storage.SubscriptionProduct) []*PDFLine {
+	switch p.IsNonPlatform() {
+	case false:
+		pdfLine := PDFLine{
+			InvoiceNum:   i.BookedInvoiceNumber,
+			Recipient:    i.Recipient,
+			Date:         i.Date,
+			MaxSellerCut: l.maxSellerCut(p),
+			MinByrdInc:   l.minByrdInc(p),
+			Period:       setPeriod(p.Period),
+			VAT:          i.applyTax(l),
+			NetAmount:    l.TotalNetAmount,
 		}
-	}
-	fmt.Printf("Fixed line: %v for product %s and invoice#: %v\n", l.LineNumber, l.Product, i.BookedInvoiceNumber)
-	return l
-}
+		pdfLines = append(pdfLines, &pdfLine)
 
-func (l *Lines) handleIfPAYGCredits(p *storage.SubscriptionProduct) int {
-	if l.Product.ProductNumber == productPAYG {
-		credits := int(l.Quantity)
-		fmt.Printf("Credit amount was calculated based on PAYG amount: %v\n", credits)
-		return credits
+	case true:
+		fmt.Printf("Single sale inv#: %v!\n", i.BookedInvoiceNumber)
+		pdfLine := PDFLine{
+			InvoiceNum:   i.BookedInvoiceNumber,
+			Recipient:    i.Recipient,
+			Date:         i.Date,
+			MaxSellerCut: p.GetSellerCut(),
+			MinByrdInc:   i.NetAmount - p.GetSellerCut(),
+			Period:       "ONE-TIME",
+			VAT:          i.VatAmount,
+			NetAmount:    i.NetAmount,
+		}
+
+		pdfLines = append(pdfLines, &pdfLine)
+		fmt.Printf("Credits: %v. VAT: %v. Period: %s \n", p.Credits, pdfLine.VAT, pdfLine.Period)
 	}
-	return p.Credits
+	return pdfLines
 }
 
 func calcTotalVals(vals []*PDFLine) *TotalVals {
@@ -224,18 +229,30 @@ func createPDF(pdf *gofpdf.Fpdf) ([]byte, error) {
 
 }
 
+func (l *Lines) handleIfWrongLineNumber(i *BookedInvoice) *Lines {
+	if l.SortKey != l.LineNumber {
+		if l.LineNumber != productLineNumber {
+			l.LineNumber = productLineNumber
+		}
+	}
+	fmt.Printf("Fixed line: %v for product %s and invoice#: %v\n", l.LineNumber, l.Product, i.BookedInvoiceNumber)
+	return l
+}
+
+func (l *Lines) handleIfPAYGCredits(p *storage.SubscriptionProduct) int {
+	if l.Product.ProductNumber == productPAYG {
+		credits := int(l.Quantity)
+		fmt.Printf("Credit amount was calculated based on PAYG amount: %v\n", credits)
+		return credits
+	}
+	return p.Credits
+}
+
 func (l *Lines) isEuroAmount(i *BookedInvoice) *Lines {
 	if i.Currency == eur {
 		l.TotalNetAmount *= euroToDKKPrice
 	}
 	return l
-}
-
-func (l *Lines) isYearlyProduct(p *storage.SubscriptionProduct) *storage.SubscriptionProduct {
-	if p.Period == year {
-		p.Credits *= 12
-	}
-	return p
 }
 
 func (l *Lines) minByrdInc(p *storage.SubscriptionProduct) float64 {
