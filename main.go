@@ -23,9 +23,6 @@ func init() {
 	}
 }
 
-// TODO:
-// 1. Add PAYG credits handling
-// 2. Uden om platformen
 func main() {
 	/* Run shellscript: `$ sh create-lambda.sh` for docker deploy */
 	lambda.Start(HandleRequest)
@@ -81,9 +78,10 @@ func NotifyOnSlack(dates *invoices.DateRange, dirName string) error {
 		Color:     "#00711D",
 		Footer:    "This is an auto-msg. Don't message me.",
 	}
-	if err := slack.NotifyPDFCreation(msg); err != nil {
-		return err
-	}
+	_ = msg
+	// if err := slack.NotifyPDFCreation(msg); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
