@@ -108,22 +108,15 @@ func handleValues(db *storage.DBInstance, invoices []*BookedInvoice) []*PDFLine 
 	pdfLines := []*PDFLine{}
 	for _, invoice := range invoices {
 		for _, line := range invoice.Lines {
-			if nilBookedInv()[invoice.BookedInvoiceNumber] != true {
-				// If the line number is not the sortkey
-				line = line.handleIfWrongLineNumber(invoice)
-				// If line and sortkey checks out
-				if line.LineNumber == line.SortKey && line.LineNumber == productLineNumber {
-					product, err := storage.GetSubscriptionProducts(db, line.Product.ProductNumber)
-					if err != nil {
-						log.Panicf("Didnt get products from FB: %s", err)
-					}
-					product.Credits = line.handleIfPAYGCredits(product)
-					product = product.IsYearlyProduct()
-					line = line.isEuroAmount(invoice)
-					// Adding to PDF values slice
-					pdfLines = line.addToLine(pdfLines, invoice, product)
-				}
+			product, err := storage.GetSubscriptionProducts(db, line.Product.ProductNumber)
+			if err != nil {
+				log.Panicf("Didnt get products from FB: %s", err)
 			}
+			product.Credits = line.handleIfPAYGCredits(product)
+			product = product.IsYearlyProduct()
+			line = line.isEuroAmount(invoice)
+			// Adding to PDF values slice
+			pdfLines = line.addToLine(pdfLines, invoice, product)
 		}
 	}
 	return pdfLines
