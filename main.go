@@ -78,10 +78,9 @@ func NotifyOnSlack(dates *invoices.DateRange, dirName string) error {
 		Color:     "#00711D",
 		Footer:    "This is an auto-msg. Don't message me.",
 	}
-	_ = msg
-	// if err := slack.NotifyPDFCreation(msg); err != nil {
-	// 	return err
-	// }
+	if err := slack.NotifyPDFCreation(msg); err != nil {
+		return err
+	}
 	return nil
 }
 
