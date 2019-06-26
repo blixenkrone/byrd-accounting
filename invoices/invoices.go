@@ -40,6 +40,7 @@ type BookedInvoice struct {
 	GrossAmount         float64    `json:"grossAmount,omitempty"`
 	Lines               []*Lines   `json:"lines,omitempty"`
 	Recipient           *Recipient `json:"recipient"`
+	Customer            *Customer  `json:"customer"`
 }
 
 // Recipient -
@@ -49,6 +50,11 @@ type Recipient struct {
 	Zip     string `json:"zip"`
 	City    string `json:"city"`
 	Country string `json:"country"`
+}
+
+// Customer for customer number
+type Customer struct {
+	CustomerNumber int `json:"customerNumber"`
 }
 
 // Lines -
@@ -78,6 +84,28 @@ var (
 	ecoURL = "https://restapi.e-conomic.com"
 )
 
+// InitInvoiceOutput outputs the PDF as a []byte
+func InitInvoiceOutput(d *DateRange) ([]byte, error) {
+	// Set current dates and GET the booked Eco invoices
+	invoices, err := getEconomicsBookedInvoices(d.Query)
+	if err != nil {
+		return nil, err
+	}
+
+	// For each invoices (*Collection), fetch the corresponding specific invoice line /invoices/booked/{number}
+	specificInvoices, err := getSpecificEcoBookedInvoices(invoices.Collection)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write the invoice
+	file, err := WriteInvoicesPDF(specificInvoices)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
 func getEconomicsBookedInvoices(query string) (*BookedInvoices, error) {
 	//syntax: https://restdocs.e-conomic.com/#filter-operators
 	// combined mongo query excc.: date$gte:2018-01-01$and:date$lt:2018-01-09
@@ -91,6 +119,7 @@ func getEconomicsBookedInvoices(query string) (*BookedInvoices, error) {
 	return &invoices, nil
 }
 
+// This contains the information about specific invoices from Economics
 func getSpecificEcoBookedInvoices(invoiceNums []*BookedInvoiceNumber) ([]*BookedInvoice, error) {
 	specificInvoices := []*BookedInvoice{}
 	for _, num := range invoiceNums {

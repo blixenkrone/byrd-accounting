@@ -14,11 +14,12 @@ import (
 
 // SubscriptionProduct is the economics invoice ID
 type SubscriptionProduct struct {
-	Credits     int     `json:"credits"` /* Important */
-	FBID        string  `json:"id"`
-	Period      string  `json:"period"`
-	PhotoCut    float64 `json:"photoCut"`
-	TotalAmount float64 `json:"totalAmount"`
+	Credits       int     `json:"credits"` /* Important */
+	FBID          string  `json:"id"`
+	Period        string  `json:"period"`
+	PhotoCut      float64 `json:"photoCut"`
+	TotalAmount   float64 `json:"totalAmount"`
+	ProductNumber string  // comes from the DB object name
 }
 
 // DBInstance -
@@ -68,6 +69,7 @@ func GetSubscriptionProducts(db *DBInstance, productNumber string) (*Subscriptio
 	if err := ref.Get(db.Context, &product); err != nil {
 		return nil, err
 	}
+	product.ProductNumber = productNumber
 	return &product, nil
 }
 

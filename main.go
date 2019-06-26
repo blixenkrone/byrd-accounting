@@ -5,16 +5,23 @@ import (
 	"log"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/byblix/byrd-accounting/invoices"
-	"github.com/byblix/byrd-accounting/slack"
-	"github.com/byblix/byrd-accounting/storage"
+	"github.com/blixenkrone/byrd-accounting/invoices"
+	"github.com/blixenkrone/byrd-accounting/slack"
+	"github.com/blixenkrone/byrd-accounting/storage"
 	"github.com/joho/godotenv"
 )
 
 /**
- * cron: 0 0 12 LW * ? (Every month on the last weekday, at noon)
- * GOOS=linux GOARCH=amd64 go build -o main main.go
- * zip main.zip main
+ * TODO: Faktura #135. Hvis unlimited plan => max seller cut er = subtotal for subscription (ex. moms)
+ * *: Variabel unlimited plan => hvis unlimited er en årlig aftale fremgår prisen heraf, så ignorer PERIOD.
+ * ! Sig det til Morten ^
+ * *: Min. Byrd cut bliver 0 nogle gange (se faktura 151)
+ * ! Sig til morten at faktura 151 får negativt beløb fordi det er noteret som en årsaftale (selvom det er en måned)
+ * *: I stedet for customer navn så er det kunde nr.("customerNumber": 1105 i economoics)
+ * *: Hvis produktnummer 25, indsæt subtotal beløbet i Min. Byrd cut colonnen (eksisterende med moms og total price).
+ * *: MOMS skal beregnes i EUR hvis alle priser er i EURO (faktura nummer#: 159)
+
+ * ?: Hvis kreditnota, træk alle linjebeløb fra total priserne (i alle rækkerne).
  */
 
 func init() {
@@ -24,7 +31,7 @@ func init() {
 }
 
 func main() {
-	/* Run shellscript: `$ sh create-lambda.sh` for docker deploy */
+	// Makefile lambdazip
 	lambda.Start(HandleRequest)
 	// HandleRequest() // 	testing:
 }
@@ -33,12 +40,14 @@ func main() {
 func HandleRequest() {
 	/*CUSTOM DATES*/
 	// dates := &invoices.DateRange{
-	// 	From: "2019-03-01",
-	// 	To:   "2019-03-31",
+	// 	From: "2019-05-01",
+	// 	To:   "2019-05-31",
 	// }
 	// dates.Query = "date$gte:" + dates.From + "$and:date$lte:" + dates.To
 	/*CUSTOM DATES*/
+
 	dates := invoices.SetDateRange()
+
 	file := CreateInvoice(dates)
 	dirName, err := StoreOnAWS(file, dates)
 	if err != nil {

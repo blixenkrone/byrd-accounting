@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/byblix/byrd-accounting/storage"
+	"github.com/blixenkrone/byrd-accounting/storage"
 	"github.com/jung-kurt/gofpdf"
 	"github.com/leekchan/accounting"
 )
@@ -23,6 +23,7 @@ const (
 	eur                    = "EUR"
 	month                  = "month"
 	year                   = "year"
+	pureByrdIncomeProduct  = "25"
 	productLineNumber      = 1
 	productSortKey         = 1
 	photographerCut        = 15
@@ -35,6 +36,7 @@ const (
 type PDFLine struct {
 	InvoiceNum                               int
 	Recipient                                *Recipient
+	Customer                                 *Customer
 	Date, Period                             string
 	MaxSellerCut, MinByrdInc, NetAmount, VAT float64
 }
@@ -44,7 +46,7 @@ type TotalVals struct {
 	TotalSellerCut, TotalByrdInc, TotalNetAmount, TotalVAT float64
 }
 
-var ftrHdrSizes = []float64{20, 20, 50, 20, 20, 30, 30, 30, 30}
+var ftrHdrSizes = []float64{20, 20, 30, 20, 20, 30, 30, 30, 30}
 var noPlatForm = map[string]bool{"11": true, "32": true}
 
 // WriteInvoicesPDF (abstraction) creates PDF from data
@@ -58,7 +60,7 @@ func WriteInvoicesPDF(invoices []*BookedInvoice) ([]byte, error) {
 	totals := calcTotalVals(pdfLines)
 	// Write new PDF
 	pdf := newPDF()
-	pdf = writeHeader(pdf, []string{"Inv.#", "Date", "Customer", "Country", "Period", "Max seller cut", "Min. Byrd cut", "VAT", "Total price (DKK)"})
+	pdf = writeHeader(pdf, []string{"Inv.#", "Date", "Customer #", "Country", "Period", "Max seller cut", "Min. Byrd cut", "VAT", "Total price (DKK)"})
 	pdf = writeBody(pdf, pdfLines, ac)
 	pdf = writeFooter(pdf, totals, ac)
 	file, err := createPDF(pdf)
@@ -129,9 +131,10 @@ func (l *Lines) addToLine(pdfLines []*PDFLine, i *BookedInvoice, p *storage.Subs
 		pdfLine := PDFLine{
 			InvoiceNum:   i.BookedInvoiceNumber,
 			Recipient:    i.Recipient,
+			Customer:     i.Customer,
 			Date:         i.Date,
-			MaxSellerCut: l.maxSellerCut(p),
-			MinByrdInc:   l.minByrdInc(p),
+			MaxSellerCut: l.maxSellerCut(p, i),
+			MinByrdInc:   l.minByrdInc(p, i),
 			Period:       setPeriod(p.Period),
 			VAT:          i.applyTax(l),
 			NetAmount:    l.TotalNetAmount,
@@ -143,6 +146,7 @@ func (l *Lines) addToLine(pdfLines []*PDFLine, i *BookedInvoice, p *storage.Subs
 		pdfLine := PDFLine{
 			InvoiceNum:   i.BookedInvoiceNumber,
 			Recipient:    i.Recipient,
+			Customer:     i.Customer,
 			Date:         i.Date,
 			MaxSellerCut: p.GetSellerCut(),
 			MinByrdInc:   i.NetAmount - p.GetSellerCut(),
@@ -176,7 +180,7 @@ func writeBody(pdf *gofpdf.Fpdf, pdfLines []*PDFLine, ac *accounting.Accounting)
 	for _, line := range pdfLines {
 		pdf.CellFormat(20, 8, strconv.Itoa(line.InvoiceNum), "1", 0, "", true, 0, "")
 		pdf.CellFormat(20, 8, line.Date, "1", 0, "", true, 0, "")
-		pdf.CellFormat(50, 8, line.Recipient.Name, "1", 0, "", true, 0, "")
+		pdf.CellFormat(30, 8, strconv.Itoa(line.Customer.CustomerNumber), "1", 0, "", true, 0, "")
 		pdf.CellFormat(20, 8, line.Recipient.Country, "1", 0, "", true, 0, "")
 		pdf.CellFormat(20, 8, line.Period, "1", 0, "", true, 0, "")
 		pdf.CellFormat(30, 8, ac.FormatMoneyFloat64(line.MaxSellerCut), "1", 0, "", true, 0, "")
@@ -184,7 +188,7 @@ func writeBody(pdf *gofpdf.Fpdf, pdfLines []*PDFLine, ac *accounting.Accounting)
 		pdf.CellFormat(30, 8, ac.FormatMoneyFloat64(line.VAT), "1", 0, "", true, 0, "")
 		pdf.CellFormat(30, 8, ac.FormatMoneyFloat64(line.NetAmount+line.VAT), "1", 0, "", true, 0, "")
 		pdf.Ln(6)
-		fmt.Printf("Wrote invoice#: %v to customer: %s with amount: %v\n", line.InvoiceNum, line.Recipient.Name, line.NetAmount)
+		fmt.Printf("Wrote invoice#: %v to customer: %s number: %v with amount: %v\n", line.InvoiceNum, line.Recipient.Name, line.Customer.CustomerNumber, line.NetAmount)
 	}
 	return pdf
 }
@@ -194,7 +198,7 @@ func writeFooter(pdf *gofpdf.Fpdf, ftr *TotalVals, ac *accounting.Accounting) *g
 	pdf.SetFillColor(240, 240, 240)
 	pdf.Cell(20, 10, "Total amounts:")
 	pdf.Cell(20, 10, "")
-	pdf.Cell(50, 10, "")
+	pdf.Cell(30, 10, "")
 	pdf.Cell(20, 10, "")
 	pdf.Cell(20, 10, "")
 	pdf.Cell(30, 10, ac.FormatMoneyFloat64(ftr.TotalSellerCut))
@@ -244,24 +248,37 @@ func (l *Lines) handleIfPAYGCredits(p *storage.SubscriptionProduct) int {
 func (l *Lines) isEuroAmount(i *BookedInvoice) *Lines {
 	if i.Currency == eur {
 		l.TotalNetAmount *= euroToDKKPrice
+		l.VatAmount *= euroToDKKPrice
 	}
 	return l
 }
 
-func (l *Lines) minByrdInc(p *storage.SubscriptionProduct) float64 {
+// TODO: Faktura 151 give = 0
+func (l *Lines) minByrdInc(p *storage.SubscriptionProduct, i *BookedInvoice) float64 {
 	if p.Credits != unlimitedAmountCredits && l.TotalNetAmount > 0 {
-		value := l.TotalNetAmount - math.Abs(l.maxSellerCut(p))
+		value := l.TotalNetAmount - math.Abs(l.maxSellerCut(p, i))
+		// No negative amounts
 		if value < 0 {
 			return 0
 		}
 		return value
 	}
+	if p.ProductNumber == pureByrdIncomeProduct {
+		fmt.Println("This is a pure byrd income ^")
+		return l.TotalNetAmount
+	}
 	return 0
 }
 
-func (l *Lines) maxSellerCut(p *storage.SubscriptionProduct) float64 {
+func (l *Lines) maxSellerCut(p *storage.SubscriptionProduct, i *BookedInvoice) float64 {
 	if p.Credits != unlimitedAmountCredits && l.TotalNetAmount > 0 {
 		totalAmt := (photographerCut * euroToDKKPrice) * parseIntToFloat(p.Credits)
+		return totalAmt
+	}
+	if p.Credits == unlimitedAmountCredits && p.ProductNumber != pureByrdIncomeProduct {
+		// If it's an unlimited deal, return the whole subtotal to the photographer
+		fmt.Println("This is an unlimited deal^")
+		totalAmt := l.TotalNetAmount
 		return totalAmt
 	}
 	return 0
