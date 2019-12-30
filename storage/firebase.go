@@ -29,7 +29,9 @@ type DBInstance struct {
 }
 
 // Nonplatform If sale != web app sale
-const Nonplatform = "nonplatform"
+const (
+	Nonplatform = "nonplatform"
+)
 
 // NonPlatformSale If the sale is outside byrd app
 type NonPlatformSale interface {
@@ -62,8 +64,9 @@ func InitFirebaseDB() (*DBInstance, error) {
 
 // GetSubscriptionProducts - this guy
 func GetSubscriptionProducts(db *DBInstance, productNumber string) (*SubscriptionProduct, error) {
+	// TODO: Get the object value
 	path := os.Getenv("ENV") + "/subscriptionProducts/" + productNumber
-	product := SubscriptionProduct{}
+	var product SubscriptionProduct
 	fmt.Printf("Path: %s\n", path)
 	ref := db.Client.NewRef(path)
 	if err := ref.Get(db.Context, &product); err != nil {
@@ -73,7 +76,7 @@ func GetSubscriptionProducts(db *DBInstance, productNumber string) (*Subscriptio
 	return &product, nil
 }
 
-// GetSellerCut returns the cut for the seller ourside byrd app
+// GetSellerCut returns the cut for the seller outside byrd app
 func (p *SubscriptionProduct) GetSellerCut() float64 {
 	if ok := p.IsNonPlatform(); ok != false {
 		return p.PhotoCut

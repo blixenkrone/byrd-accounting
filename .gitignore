@@ -6,3 +6,4 @@ byrd-accounting
 secrets
 .DS_Store
 lambda
+*.idea

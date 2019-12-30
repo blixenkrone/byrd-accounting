@@ -10,9 +10,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blixenkrone/byrd-accounting/storage"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/jung-kurt/gofpdf"
 	"github.com/leekchan/accounting"
+
+	"github.com/blixenkrone/byrd-accounting/storage"
 )
 
 const (
@@ -154,8 +156,9 @@ func (l *Lines) addToLine(pdfLines []*PDFLine, i *BookedInvoice, p *storage.Subs
 			VAT:          i.VatAmount,
 			NetAmount:    i.NetAmount,
 		}
-
 		pdfLines = append(pdfLines, &pdfLine)
+
+		spew.Dump(pdfLine)
 		fmt.Printf("Credits: %v. VAT: %v. Period: %s \n", p.Credits, pdfLine.VAT, pdfLine.Period)
 	}
 	return pdfLines
@@ -263,10 +266,10 @@ func (l *Lines) minByrdInc(p *storage.SubscriptionProduct, i *BookedInvoice) flo
 		}
 		return value
 	}
-	if p.ProductNumber == pureByrdIncomeProduct {
-		fmt.Println("This is a pure byrd income ^")
-		return l.TotalNetAmount
-	}
+	// if p.ProductNumber == pureByrdIncomeProduct {
+	// 	fmt.Println("This is a pure byrd income ^")
+	// 	return l.TotalNetAmount
+	// }
 	return 0
 }
 
