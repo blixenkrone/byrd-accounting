@@ -5,7 +5,7 @@ go 1.13
 require (
 	firebase.google.com/go v3.11.1+incompatible
 	github.com/aws/aws-lambda-go v1.13.3
-	github.com/aws/aws-sdk-go v1.26.8
+	github.com/aws/aws-sdk-go v1.33.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/joho/godotenv v1.3.0
 	github.com/jung-kurt/gofpdf v1.16.2
